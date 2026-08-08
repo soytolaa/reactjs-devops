@@ -1,19 +1,21 @@
-# stage 1 
+# Stage 1: deps + build
 FROM node:alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm i
+RUN npm ci
 
-# COPY  . . 
-COPY src ./src
-COPY public ./public 
-RUN npm run build 
+COPY . .
+RUN npm run build
 
-# Stage:2 production 
-FROM nginx:alpine 
-#FROM nginx:1.19
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/build /usr/share/nginx/html
-EXPOSE 80 
-# nginx as background and foreground 
-ENTRYPOINT [ "nginx", "-g", "daemon off;" ]
+# Stage 2: run Next.js server
+FROM node:alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+EXPOSE 3000
+ENV PORT=3000 
+CMD ["node", "server.js"]
