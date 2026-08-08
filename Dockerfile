@@ -1,41 +1,21 @@
-# Stage 1: Build the application
-FROM node:18 AS builder
-
-# Set working directory
+# Stage 1: deps + build
+FROM node:alpine AS builder
 WORKDIR /app
+COPY package*.json ./
+RUN npm ci
 
-# Copy package.json and pnpm-lock.yaml (if using pnpm)
-COPY package.json pnpm-lock.yaml ./
-
-# Install pnpm
-RUN npm install -g pnpm
-
-# Install dependencies with a frozen lockfile for consistency
-RUN pnpm install --frozen-lockfile
-
-# Copy the rest of the application
 COPY . .
+RUN npm run build
 
-# Build the application
-RUN pnpm build
-
-# Stage 2: Serve the application
-FROM node:18 AS runner
-
-# Set working directory
+# Stage 2: run Next.js server
+FROM node:alpine AS runner
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Copy only the necessary files from the build stage
-# Commenting out next.config.js if it's not needed
-# COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.env ./.env
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
-# Expose the port the app runs on
 EXPOSE 3000
-
-# Start the application
-CMD ["node", "node_modules/next/dist/bin/next", "start"]
+ENV PORT=3000
+CMD ["node", "server.js"]
